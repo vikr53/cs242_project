@@ -1,0 +1,9 @@
+#!/bin/bash
+#SBATCH -J vanilla_resnet
+#SBATCH -o vanilla_resnet.out
+#SBATCH -e vanilla_resnet.err
+#SBATCH -p shared
+#SBATCH -n 11
+#SBATCH -t 1600
+#SBATCH --mem-per-cpu=4000
+srun -n $SLURM_NTASKS --mpi=pmi2 python vanilla_resnet.py
