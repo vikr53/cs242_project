@@ -2,17 +2,17 @@
 
 To run the code locally on your machine,
 
-##Installation Requirements
-mpi4py
-tensorflow
+## Installation Requirements
+mpi4py, 
+tensorflow,
 numpy
 
-##Create Chkpt file
+## Create Chkpt file
 ```bash
 python3 chkpt_creator.py
 ```
 
-##Run
+## Run
 ```bash
 mpiexec -n NUM_NODES python3 vanilla_resnet.py
 ```
