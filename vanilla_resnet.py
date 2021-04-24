@@ -6,10 +6,12 @@ import numpy as np
 import math
 from mpi4py import MPI
 import datetime
-import torch
-import torchvision
-import torchvision.transforms as transforms
+from quantizer import Quantize
 
+#import torch
+#import torchvision
+#import torchvision.transforms as transforms
+import sys
 # Create a data augmentation stage with horizontal flipping, rotations, zooms
 data_augmentation = keras.Sequential(
     [
@@ -187,7 +189,26 @@ else:
                 #print("Step", step, loss)
                 
                 gradient_list = tape.gradient(loss, model.trainable_weights)
+                q = Quantize()
+                # Set the bitwidth here
+                q.bitwidth = 8
+                q_gradient_list = []
+                for each_array in gradient_list:
+                    q_w = q.quantize(each_array.numpy())
+                    q_gradient_list.append(tf.convert_to_tensor(q_w, ))
                 
+                # TEST
+                '''
+                for each in range(len(q_gradient_list)):
+                    print(q_gradient_list[each])
+                    print("+++++++++++++++++++++++++++++")
+                    print(gradient_list[each])
+                    sys.exit()
+                '''
+
+                # Send QUANTIZED gradients to server
+                #comm.send(q_gradient_list, dest=0, tag=11)
+
                 # Send gradients to server
                 comm.send(gradient_list, dest=0, tag=11)
 
