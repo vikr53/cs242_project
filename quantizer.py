@@ -4,6 +4,7 @@ class Quantize:
     def init():
         self.bitwidth = 8
    
+    # Uniform quantization
     def quantize(self, W):
         n = self.bitwidth
         if n >= 32:
