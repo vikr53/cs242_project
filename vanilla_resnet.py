@@ -195,7 +195,7 @@ else:
                 q_gradient_list = []
                 for each_array in gradient_list:
                     q_w = q.quantize(each_array.numpy())
-                    q_gradient_list.append(tf.convert_to_tensor(q_w, ))
+                    q_gradient_list.append(tf.convert_to_tensor(q_w))
                 
                 # TEST
                 '''
