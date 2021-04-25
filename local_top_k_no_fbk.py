@@ -38,7 +38,7 @@ x_test_local = np.zeros((1,))
 y_test_local = np.zeros((1,))   
 
 optimizer = tf.keras.optimizers.SGD()
-num_epoch = 100
+num_epoch = 70
 alpha = 0.01 # learning rate
 
 batch_size=8
@@ -174,8 +174,8 @@ else:
     grad_var_writer = tf.summary.create_file_writer(grad_var_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
-    r = [np.zeros(grad_elem_shapes[i]) for i in range(num_elem_in_grad)]
-    u = [np.zeros(grad_elem_shapes[i]) for i in range(num_elem_in_grad)]
+    #r = [np.zeros(grad_elem_shapes[i]) for i in range(num_elem_in_grad)]
+    #u = [np.zeros(grad_elem_shapes[i]) for i in range(num_elem_in_grad)]
 
 
     for epoch in range(num_epoch):
