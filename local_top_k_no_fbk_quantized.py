@@ -166,9 +166,10 @@ else:
     
     # Set up summary writers
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = 'logs/resnet88_local_fbe_topk_6000'+str(rank)+'/' + current_time + '/train'
-    grad_var_log_dir = "logs/resnet88_local_fbe_topk_6000"+str(rank)+"/"+current_time + '/grad_var'
-    test_log_dir = 'logs/resnet88_local_fbe_topk_6000'+str(rank)+'/' + current_time + '/test'
+    exp_name = "_quant_4_"
+    train_log_dir = 'logs/resnet88_local_fbe_topk_6000'+str(exp_name)+str(rank)+'/' + current_time + '/train'
+    grad_var_log_dir = "logs/resnet88_local_fbe_topk_6000"+str(exp_name)+str(rank)+"/"+current_time + '/grad_var'
+    test_log_dir = 'logs/resnet88_local_fbe_topk_6000'+str(exp_name)+str(rank)+'/' + current_time + '/test'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     grad_var_writer = tf.summary.create_file_writer(grad_var_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
@@ -236,11 +237,11 @@ else:
                     #r[i] = u[i] - top_k_grad[i]
 
                     # Set the bitwidth here
-                    q.bitwidth = 8
+                    q.bitwidth = 4
                     q_top_k = []
                     for each_array in top_k_grad:
-                        q_w = q.quantize(each_array.numpy())
-                        q_top_k.append(tf.convert_to_tensor(q_w))
+                        q_w = q.quantize(each_array)
+                        q_top_k.append(q_w)
                 # Send gradients to server
                 comm.send(q_top_k, dest=0, tag=11)
 
@@ -250,7 +251,7 @@ else:
             
             ## WORK AROUND: Receive and apply gradients
             grad_rx = comm.recv(source=0, tag=11)
-            optimizer.learning_rate = 1
+            #optimizer.learning_rate = 1
             #optimizer.momentum = 0.9
             optimizer.apply_gradients(zip(grad_rx, model.trainable_weights))
 
