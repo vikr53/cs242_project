@@ -7,6 +7,8 @@ import math
 from mpi4py import MPI
 import datetime
 
+from quantizer import Quantize
+
 # Create a data augmentation stage with horizontal flipping, rotations, zooms
 data_augmentation = keras.Sequential(
     [
@@ -173,6 +175,8 @@ else:
 
     #r = [np.zeros(grad_elem_shapes[i]) for i in range(num_elem_in_grad)]
     #u = [np.zeros(grad_elem_shapes[i]) for i in range(num_elem_in_grad)]
+    q = Quantize()
+
 
 
     for epoch in range(num_epoch):
@@ -227,12 +231,18 @@ else:
 
                     np_grad = np.array(grad[i])
                     top_k_grad[i] = np.where(mask, 0.0 , np_grad)
-
+                    
                     # Feedback error correction
                     #r[i] = u[i] - top_k_grad[i]
-              
+
+                    # Set the bitwidth here
+                    q.bitwidth = 8
+                    q_top_k = []
+                    for each_array in top_k_grad:
+                        q_w = q.quantize(each_array.numpy())
+                        q_top_k.append(tf.convert_to_tensor(q_w))
                 # Send gradients to server
-                comm.send(top_k_grad, dest=0, tag=11)
+                comm.send(q_top_k, dest=0, tag=11)
 
             ## NOT WORKING: Receive and set weights from server
             #weights = comm.recv(source=0, tag=11)
