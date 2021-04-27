@@ -165,9 +165,10 @@ else:
     
     # Set up summary writers
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = 'logs/resnet88_local_fbe_topk_6000'+str(rank)+'/' + current_time + '/train'
-    grad_var_log_dir = "logs/resnet88_local_fbe_topk_6000"+str(rank)+"/"+current_time + '/grad_var'
-    test_log_dir = 'logs/resnet88_local_fbe_topk_6000'+str(rank)+'/' + current_time + '/test'
+    exp_name = "_quant_16_"
+    train_log_dir = 'logs/resnet88_local_fbe_topk_60000'+str(rank)+'/' +str(exp_name)+ current_time + '/train'
+    grad_var_log_dir = "logs/resnet88_local_fbe_topk_60000"+str(rank)+"/"+str(exp_name)+current_time + '/grad_var'
+    test_log_dir = 'logs/resnet88_local_fbe_topk_60000'+str(rank)+'/'+str(exp_name) + current_time + '/test'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     grad_var_writer = tf.summary.create_file_writer(grad_var_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
