@@ -6,9 +6,6 @@ import numpy as np
 import math
 from mpi4py import MPI
 import datetime
-import torch
-import torchvision
-import torchvision.transforms as transforms
 
 # Create a data augmentation stage with horizontal flipping, rotations, zooms
 data_augmentation = keras.Sequential(
