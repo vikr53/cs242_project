@@ -1,0 +1,9 @@
+#!/bin/bash
+#SBATCH -J vanilla_lenet
+#SBATCH -o vanilla_lenet.out
+#SBATCH -e vanilla_lenet.err
+#SBATCH -p shared
+#SBATCH -n 11
+#SBATCH -t 1600
+#SBATCH --mem-per-cpu=4000
+srun -n $SLURM_NTASKS --mpi=pmix python3.7 vanilla_lenet.py
