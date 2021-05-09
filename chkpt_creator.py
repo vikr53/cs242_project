@@ -19,7 +19,7 @@ def res_net_block(input_data, filters, conv_size):
   x = layers.Activation('relu')(x)
   return x
 
-# Instantiate model
+# Instantiate ResNet model
 inputs = keras.Input(shape=(32, 32, 3))
 x = layers.Conv2D(32, 3, activation='relu')(inputs)
 x = layers.Conv2D(64, 3, activation='relu')(x)
@@ -35,3 +35,18 @@ outputs = layers.Dense(10, activation='softmax')(x)
 model = keras.Model(inputs, outputs)
 
 model.save_weights("./chkpts/init_resnet8.ckpt")
+
+# Instantiate LeNet model
+inputs = keras.Input(shape=(32, 32, 3),name="input")
+x = layers.Conv2D(6, 3, activation='relu',name="layer1")(inputs)
+x = layers.MaxPooling2D(3)(x)
+x = layers.Conv2D(16, 3, activation='relu',name="layer2")(x)
+x = layers.MaxPooling2D(3)(x)
+x = layers.Flatten()(x)
+
+x = layers.Dense(120, activation='relu',name="FC1")(x)
+x = layers.Dense(84, activation='relu',name="FC2")(x)
+outputs = layers.Dense(10, activation='softmax')(x)
+model_lenet = keras.Model(inputs, outputs)
+print("Creating Checkpoint for LeNet model!")
+model_lenet.save_weights("./chkpts/init_lenet.ckpt")

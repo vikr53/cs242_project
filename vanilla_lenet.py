@@ -90,20 +90,20 @@ if rank == 0:
         comm.send([x_train_local, y_train_local, x_test, y_test], dest=n, tag=11)
     
     # Instantiate model
-    inputs = keras.Input(shape=(32, 32, 3))
-    x = layers.Conv2D(6, 3, activation='relu')(inputs)
-    x = layers.GlobalAveragePooling2D()(x)
-    x = layers.Conv2D(16, 3, activation='relu')(x)
-    x = layers.GlobalAveragePooling2D()(x)
-    x = layers.flatten()
+    inputs = keras.Input(shape=(32, 32, 3),name="input")
+    x = layers.Conv2D(6, 3, activation='relu',name="layer1")(inputs)
+    x = layers.MaxPooling2D(3)(x)
+    x = layers.Conv2D(16, 3, activation='relu',name="layer2")(x)
+    x = layers.MaxPooling2D(3)(x)
+    x = layers.Flatten()(x)
     
-    x = layers.Dense(120, activation='relu')(x)
-    x = layers.Dense(84, activation='relu')(x)
+    x = layers.Dense(120, activation='relu',name="FC1")(x)
+    x = layers.Dense(84, activation='relu',name="FC2")(x)
     outputs = layers.Dense(10, activation='softmax')(x)
     model = keras.Model(inputs, outputs)
 
     # load weights
-    model.load_weights("./chkpts/init_resnet8.ckpt")
+    model.load_weights("./chkpts/init_lenet.ckpt")
 
     # dummy dataset to get number of steps
     dset = tf.data.Dataset.from_tensor_slices((d_xtrain, d_ytrain))
@@ -145,22 +145,20 @@ else:
     val_dataset = val_dataset.shuffle(buffer_size=20000).batch(batch_size)
     
     # Instantiate model
-    inputs = keras.Input(shape=(32, 32, 3))
-    x = layers.Conv2D(32, 3, activation='relu')(inputs)
-    x = layers.Conv2D(64, 3, activation='relu')(x)
+    inputs = keras.Input(shape=(32, 32, 3),name="input")
+    x = layers.Conv2D(6, 3, activation='relu',name="layer1")(inputs)
     x = layers.MaxPooling2D(3)(x)
-    num_res_net_blocks = 8
-    for i in range(num_res_net_blocks):
-        x = res_net_block(x, 64, 3)
-    x = layers.Conv2D(64, 3, activation='relu')(x)
-    x = layers.GlobalAveragePooling2D()(x)
-    x = layers.Dense(256, activation='relu')(x)
-    x = layers.Dropout(0.5)(x)
+    x = layers.Conv2D(16, 3, activation='relu',name="layer2")(x)
+    x = layers.MaxPooling2D(3)(x)
+    x = layers.Flatten()(x)
+    
+    x = layers.Dense(120, activation='relu',name="FC1")(x)
+    x = layers.Dense(84, activation='relu',name="FC2")(x)
     outputs = layers.Dense(10, activation='softmax')(x)
     model = keras.Model(inputs, outputs)
-    
-    # model load weights
-    model.load_weights("./chkpts/init_resnet8.ckpt")
+
+    # load weights
+    model.load_weights("./chkpts/init_lenet.ckpt")
 
     # Unfreeze Batch Norm layers                                                                              
     for layer in model.layers:
@@ -187,13 +185,13 @@ else:
                 #print("Step", step, loss)
                 
                 gradient_list = tape.gradient(loss, model.trainable_weights)
-                q = Quantize()
+                #q = Quantize()
                 # Set the bitwidth here
-                q.bitwidth = 8
-                q_gradient_list = []
-                for each_array in gradient_list:
-                    q_w = q.quantize(each_array.numpy())
-                    q_gradient_list.append(tf.convert_to_tensor(q_w))
+                #q.bitwidth = 32
+                #q_gradient_list = []
+                #for each_array in gradient_list:
+                #    q_w = q.quantize(each_array.numpy())
+                #    q_gradient_list.append(tf.convert_to_tensor(q_w))
                 
                 # TEST
                 '''
