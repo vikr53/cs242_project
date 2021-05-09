@@ -185,13 +185,13 @@ else:
                 #print("Step", step, loss)
                 
                 gradient_list = tape.gradient(loss, model.trainable_weights)
-                #q = Quantize()
+                q = Quantize()
                 # Set the bitwidth here
-                #q.bitwidth = 32
-                #q_gradient_list = []
-                #for each_array in gradient_list:
-                #    q_w = q.quantize(each_array.numpy())
-                #    q_gradient_list.append(tf.convert_to_tensor(q_w))
+                q.bitwidth = 32
+                q_gradient_list = []
+                for each_array in gradient_list:
+                    q_w = q.quantize(each_array.numpy())
+                    q_gradient_list.append(tf.convert_to_tensor(q_w))
                 
                 # TEST
                 '''
@@ -203,10 +203,10 @@ else:
                 '''
 
                 # Send QUANTIZED gradients to server
-                #comm.send(q_gradient_list, dest=0, tag=11)
+                comm.send(q_gradient_list, dest=0, tag=11)
 
                 # Send gradients to server
-                comm.send(gradient_list, dest=0, tag=11)
+                #comm.send(gradient_list, dest=0, tag=11)
 
             ## NOT WORKING: Receive and set weights from server
             #weights = comm.recv(source=0, tag=11)
