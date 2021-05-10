@@ -142,19 +142,23 @@ else:
     
     # Instantiate model
     inputs = keras.Input(shape=(32, 32, 3),name="input")
-    x = layers.Conv2D(6, 3, activation='relu',name="layer1")(inputs)
-    x = layers.MaxPooling2D(3)(x)
-    x = layers.Conv2D(16, 3, activation='relu',name="layer2")(x)
-    x = layers.MaxPooling2D(3)(x)
-    x = layers.Flatten()(x)
-    
-    x = layers.Dense(120, activation='relu',name="FC1")(x)
-    x = layers.Dense(84, activation='relu',name="FC2")(x)
+    x = layers.Conv2D(96, 3, strides = (4,4), name="layer1")(inputs)
+    x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
+    x = layers.Conv2D(256, 5, activation='relu',name="layer2")(x)
+    x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
+    x = layers.Conv2D(384, 3, activation='relu',name="layer3")(x)
+    x = layers.Conv2D(384, 3, activation='relu',name="layer4")(x)
+    x = layers.Conv2D(256, 3, activation='relu',name="layer5")(x)
+    x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
+    x = layers.Dense(4096, activation='relu',name="FC1")(x)
+    x = layers.Dropout(0.4)(x)
+    x = layers.Dense(4096, activation='relu',name="FC2")(x)
+    x = layers.Dropout(0.4)(x)
     outputs = layers.Dense(10, activation='softmax')(x)
     model = keras.Model(inputs, outputs)
 
     # load weights
-    model.load_weights("./chkpts/init_lenet.ckpt")
+    model.load_weights("./chkpts/init_alexnet.ckpt")
 
     # Unfreeze Batch Norm layers                                                                              
     for layer in model.layers:
