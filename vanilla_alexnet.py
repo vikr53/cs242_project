@@ -81,15 +81,15 @@ if rank == 0:
         # comm.send([x_train_local, y_train_local, x_test_local, y_test_local], dest=n, tag=11)
         comm.send([x_train_local, y_train_local, x_test, y_test], dest=n, tag=11)
     
-    # Instantiate model
+    # Instantiate AlexNet model
     inputs = keras.Input(shape=(32, 32, 3),name="input")
     x = layers.Conv2D(96, 3, strides = (4,4), name="layer1")(inputs)
     x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
-    x = layers.Conv2D(256, 5, activation='relu',name="layer2")(x)
+    x = layers.Conv2D(256, 5, activation='relu', padding='same',name="layer2")(x)
     x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
-    x = layers.Conv2D(384, 3, activation='relu',name="layer3")(x)
-    x = layers.Conv2D(384, 3, activation='relu',name="layer4")(x)
-    x = layers.Conv2D(256, 3, activation='relu',name="layer5")(x)
+    x = layers.Conv2D(384, 3, activation='relu',padding='same',name="layer3")(x)
+    x = layers.Conv2D(384, 3, activation='relu',padding='same',name="layer4")(x)
+    x = layers.Conv2D(256, 3, activation='relu',padding='same',name="layer5")(x)
     x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
     x = layers.Dense(4096, activation='relu',name="FC1")(x)
     x = layers.Dropout(0.4)(x)
@@ -140,15 +140,15 @@ else:
     val_dataset = tf.data.Dataset.from_tensor_slices((x_test_local, y_test_local))
     val_dataset = val_dataset.shuffle(buffer_size=20000).batch(batch_size)
     
-    # Instantiate model
+    # Instantiate AlexNet model
     inputs = keras.Input(shape=(32, 32, 3),name="input")
     x = layers.Conv2D(96, 3, strides = (4,4), name="layer1")(inputs)
     x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
-    x = layers.Conv2D(256, 5, activation='relu',name="layer2")(x)
+    x = layers.Conv2D(256, 5, activation='relu', padding='same',name="layer2")(x)
     x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
-    x = layers.Conv2D(384, 3, activation='relu',name="layer3")(x)
-    x = layers.Conv2D(384, 3, activation='relu',name="layer4")(x)
-    x = layers.Conv2D(256, 3, activation='relu',name="layer5")(x)
+    x = layers.Conv2D(384, 3, activation='relu',padding='same',name="layer3")(x)
+    x = layers.Conv2D(384, 3, activation='relu',padding='same',name="layer4")(x)
+    x = layers.Conv2D(256, 3, activation='relu',padding='same',name="layer5")(x)
     x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
     x = layers.Dense(4096, activation='relu',name="FC1")(x)
     x = layers.Dropout(0.4)(x)
