@@ -33,7 +33,7 @@ y_test_local = np.zeros((1,))
 
 optimizer = tf.keras.optimizers.SGD()
 num_epoch = 100
-alpha = 0.001 # learning rate
+alpha = 0.01 # learning rate
 
 batch_size=8
 
