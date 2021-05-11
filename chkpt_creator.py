@@ -19,6 +19,21 @@ def res_net_block(input_data, filters, conv_size):
   x = layers.Activation('relu')(x)
   return x
 
+def SeparableConv( x , num_filters , strides , alpha=1.0 ):
+    x = layers.DepthwiseConv2D( kernel_size=3 , padding='same' )( x )
+    x = layers.BatchNormalization(momentum=0.9997)( x )
+    x = layers.Activation( 'relu' )( x )
+    x = layers.Conv2D( np.floor( num_filters * alpha ) , kernel_size=( 1 , 1 ) , strides=strides , use_bias=False , padding='same' )( x )
+    x = layers.BatchNormalization(momentum=0.9997)(x)
+    x = layers.Activation('relu')(x)
+    return x
+
+def Conv( x , num_filters , kernel_size , strides=1 , alpha=1.0 ):
+    x = layers.Conv2D( np.floor( num_filters * alpha ) , kernel_size=kernel_size , strides=strides , use_bias=False , padding='same' )( x )
+    x = layers.BatchNormalization( momentum=0.9997 )(x)
+    x = layers.Activation('relu')(x)
+    return x  
+
 '''
 # Instantiate ResNet model
 inputs = keras.Input(shape=(32, 32, 3))
@@ -53,22 +68,28 @@ model_lenet = keras.Model(inputs, outputs)
 print("Creating Checkpoint for LeNet model!")
 model_lenet.save_weights("./chkpts/init_lenet.ckpt")
 '''
-# Instantiate AlexNet model
-inputs = keras.Input(shape=(32, 32, 3),name="input")
-x = layers.Conv2D(96, 3, strides = (4,4), name="layer1")(inputs)
-x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
-x = layers.Conv2D(256, 5, activation='relu', padding='same',name="layer2")(x)
-x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
-x = layers.Conv2D(384, 3, activation='relu',padding='same',name="layer3")(x)
-x = layers.Conv2D(384, 3, activation='relu',padding='same',name="layer4")(x)
-x = layers.Conv2D(256, 3, activation='relu',padding='same',name="layer5")(x)
-x = layers.MaxPooling2D(pool_size=(2,2),strides=(2,2))(x)
-x = layers.Dense(4096, activation='relu',name="FC1")(x)
-x = layers.Dropout(0.4)(x)
-x = layers.Dense(4096, activation='relu',name="FC2")(x)
-x = layers.Dropout(0.4)(x)
-outputs = layers.Dense(10, activation='softmax')(x)
-model_alexnet = keras.Model(inputs, outputs)
 
-print("Creating Checkpoint for AlexNet model!")
-model_alexnet.save_weights("./chkpts/init_alexnet.ckpt")
+# Instantiate MobileNet model
+inputs = keras.Input(shape=(32, 32, 3),name="input")
+x = Conv( inputs , num_filters=32 , kernel_size=3)
+x = SeparableConv( x , num_filters=32 , strides=1 )
+x = Conv( x , num_filters=64 , kernel_size=1 )
+x = SeparableConv( x , num_filters=64,strides=1)
+x = Conv( x , num_filters=128 , kernel_size=1 )
+x = SeparableConv( x , num_filters=128 , strides=1  )
+x = Conv( x , num_filters=128 , kernel_size=1 )
+x = SeparableConv( x , num_filters=128,strides=1)
+x = Conv( x , num_filters=256 , kernel_size=1 )
+x = SeparableConv( x , num_filters=256 , strides=1  )
+x = Conv( x , num_filters=256 , kernel_size=1 )
+x = SeparableConv( x , num_filters=256,strides=1)
+x = Conv( x , num_filters=512 , kernel_size=1 )
+x = SeparableConv(x, num_filters=512 , strides=1 )
+x = Conv(x, num_filters=1024 , kernel_size=1 )
+x = tf.keras.layers.AveragePooling2D( pool_size=( 7 , 7 ) )( x )
+x = tf.keras.layers.Flatten()( x )
+outputs = layers.Dense(10, activation='softmax')(x)
+model = keras.Model(inputs, outputs)
+
+print("Creating Checkpoint for MobileNet model!")
+model.save_weights("./chkpts/init_mobilenet.ckpt")
