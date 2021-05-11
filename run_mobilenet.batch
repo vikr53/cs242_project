@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -J vanilla_lenet
-#SBATCH -o vanilla_lenet.out
-#SBATCH -e vanilla_lenet.err
+#SBATCH -J mobilenet
+#SBATCH -o vanilla_mobilenet.out
+#SBATCH -e vanilla_mobilenet.err
 #SBATCH -p shared
 #SBATCH -n 11
 #SBATCH -t 1600
