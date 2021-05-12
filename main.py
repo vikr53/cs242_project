@@ -286,7 +286,6 @@ else:
                 if quant < 32:
                     if fbk:
                         np_u = np.array(u)
-                        
                         q = Quantize()
                         q.bitwidth = quant
                         q_np_u = []
@@ -294,10 +293,20 @@ else:
                         for each_idx in range(len(np_u)):
                             q_w = q.quantize(np_u[each_idx])
                             q_np_u.append(q_w)
-
                             # Feedback error correction
                             r[each_idx] = u[each_idx] - q_np_u[each_idx]
                         grad_tx = q_np_u
+                    else:
+                        np_grad = np.array(grad)
+                        q = Quantize()
+                        q.bitwidth = quant
+                        q_np_grad = []
+
+                        for each_idx in range(len(np_grad)):
+                            q_w = q.quantize(np_grad[each_idx])
+                            q_np_grad.append(q_w)
+                            
+                        grad_tx = q_np_grad
                 else:
                     np_grad = np.array(grad)
             
@@ -307,7 +316,6 @@ else:
 
                     for each_idx in range(len(np_grad)):
                         q_w = q.quantize(np_grad[each_idx])
-                        print(q_w)
                         q_np_grad.append(q_w)
                     grad_tx = q_np_grad
                         
