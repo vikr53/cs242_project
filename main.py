@@ -46,15 +46,15 @@ alpha = 0.01 # learning rate
 
 batch_size=8
 
-base_model = "flnet" # available models: "FLNet, LeNet"
+base_model = "lenet" # available models: "FLNet, LeNet"
 
 fbk = True # whether to use feedback error correction or not
 
 ## CHOOSE COMPRESSION SCHEME
 # I. TOPK
 topk = True
-k = 6
-k_decay = None # None if no decay
+k = 190
+k_decay = "lin" # None if no decay
 
 # II. QUANT
 quant = 32 # quantization bit-width: if 32, then no quant
@@ -191,7 +191,7 @@ else:
 
     train_log_dir = base+str(rank)+'/' + current_time + '/train'
     #grad_var_log_dir = base+'k_'+str(k)+'/'+str(rank)+'/' + current_time + '/grad_var'
-    test_log_dir = base+'k_'+str(k)+'/'+str(rank)+'/' + current_time + '/test'
+    test_log_dir = base+str(rank)+'/' + current_time + '/test'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     #grad_var_writer = tf.summary.create_file_writer(grad_var_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
@@ -244,7 +244,7 @@ else:
                     k_epoch = k
                     if k_decay == "lin":
                         n_epoch = 20
-                        kf = 6
+                        kf = 1
                         k_epoch = int(k - math.floor((epoch)*(k-kf)/(num_epoch)))
 
                     top_val, top_idx = tf.math.top_k(tf.math.abs(concat_grads), k_epoch)
