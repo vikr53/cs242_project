@@ -6,11 +6,10 @@ import numpy as np
 import math
 from mpi4py import MPI
 import datetime
-import torch
-import torchvision
-import torchvision.transforms as transforms
 from quantization.quantizer import Quantize
+from resnet_generator import ResNetForCIFAR10
 
+import sys
 # Create a data augmentation stage with horizontal flipping, rotations, zooms
 data_augmentation = keras.Sequential(
     [
@@ -46,15 +45,15 @@ alpha = 0.01 # learning rate
 
 batch_size=8
 
-base_model = "lenet" # available models: "FLNet, LeNet"
+base_model = "resnet" # available models: "FLNet, LeNet"
 
-fbk = True # whether to use feedback error correction or not
+fbk = False # whether to use feedback error correction or not
 
 ## CHOOSE COMPRESSION SCHEME
 # I. TOPK
 topk = True
 k = 190
-k_decay = "lin" # None if no decay
+k_decay = "None" # None if no decay
 
 # II. QUANT
 quant = 32 # quantization bit-width: if 32, then no quant
@@ -169,6 +168,17 @@ else:
 
         # load weights
         model.load_weights("./chkpts/init_lenet.ckpt")
+    elif base_model == "resnet":
+        weight_decay = 1e-4
+        num_blocks = 9
+        name = "resnet"
+        model = ResNetForCIFAR10(input_shape=(32, 32, 3),name=name,block_layers_num=num_blocks, classes=10, weight_decay=weight_decay)
+        
+        #load weights
+        model.load_weights("./chkpts/init_resnet.ckpt")
+    else:
+        print("Incorrect NN choice. Please choose either FLNet, lenet, or resnet!!")
+        sys.exit()
 
     # Unfreeze Batch Norm layers                                                                              
     for layer in model.layers:
