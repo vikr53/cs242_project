@@ -41,7 +41,7 @@ y_test_local = np.zeros((1,))
 optimizer = tf.keras.optimizers.SGD()
 
 ### EXPERIMENT CONFIG ######################################
-num_epoch = 100
+num_epoch = 70
 alpha = 0.01 # learning rate
 
 batch_size=8
@@ -53,7 +53,8 @@ fbk = True # whether to use feedback error correction or not
 ## CHOOSE COMPRESSION SCHEME
 # I. TOPK
 topk = True
-k = 600
+k = 6
+k_decay = None # None if no decay
 
 # II. QUANT
 quant = 32 # quantization bit-width: if 32, then no quant
@@ -182,9 +183,13 @@ else:
     if topk:
         base += "topk/"
     if quant < 32:
-        base += "quant/"
-    
-    train_log_dir = base+'k_'+str(k)+'/'+str(rank)+'/' + current_time + '/train'
+        base += "quant_"+str(quant)+"/"
+    if k_decay != None:
+        base += 'kdecay_'+k_decay+str(k)+'/'
+    else:
+        base += 'k_'+str(k)+'/'
+
+    train_log_dir = base+str(rank)+'/' + current_time + '/train'
     #grad_var_log_dir = base+'k_'+str(k)+'/'+str(rank)+'/' + current_time + '/grad_var'
     test_log_dir = base+'k_'+str(k)+'/'+str(rank)+'/' + current_time + '/test'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
@@ -225,8 +230,7 @@ else:
                   
                     for i in range(num_elem_in_grad):
                         flattened = tf.reshape(u[i], -1) #flatten
-                        concat_grads = tf.concat((concat_grads, flattened), 0)
-                        
+                        concat_grads = tf.concat((concat_grads, flattened), 0)                        
                 else:
                     for j in range(num_elem_in_grad):
                         flattened = tf.reshape(grad[j], -1) #flatten
@@ -237,15 +241,24 @@ else:
                 # Compute top-k of grad/u
                 grad_tx = []
                 if topk:
-                    top_val, top_idx = tf.math.top_k(tf.math.abs(concat_grads), k)
+                    k_epoch = k
+                    if k_decay == "lin":
+                        n_epoch = 20
+                        kf = 6
+                        k_epoch = int(k - math.floor((epoch)*(k-kf)/(num_epoch)))
+
+                    top_val, top_idx = tf.math.top_k(tf.math.abs(concat_grads), k_epoch)
                     k_val, k_idx = top_val[-1], top_idx[-1]
                     top_k_grad = [np.zeros(grad_elem_shapes[i]) for i in range(len(grad_elem_shapes))]
-
-                
+                    
+                    
                     for i in range(num_elem_in_grad):
                         threshold = tf.fill(grad_elem_shapes[i], k_val)
-                        mask = tf.math.abs(grad[i]) < threshold
-              
+                        if fbk:
+                          mask = tf.math.abs(u[i]) < threshold
+                        else:
+                          mask = tf.math.abs(grad[i]) < threshold
+
                         elems_equal = tf.equal(mask, False)
                         as_int = tf.cast(elems_equal, tf.int32)
                         count = tf.reduce_sum(as_int)          
