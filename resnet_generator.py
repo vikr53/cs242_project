@@ -1,15 +1,15 @@
-from tensorflow import keras
-from keras import layers
-from keras.layers import Dense
-from keras.layers import Conv2D
-from keras.layers import AveragePooling2D
-from keras.layers import Flatten
-from keras.layers import MaxPool2D
-from keras.layers import Input
-from keras.layers import BatchNormalization
-from keras.layers import Activation
-from keras.models import Model
-from keras.regularizers import l2
+
+from tensorflow.keras import layers
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Conv2D
+from tensorflow.keras.layers import AveragePooling2D
+from tensorflow.keras.layers import Flatten
+from tensorflow.keras.layers import MaxPool2D
+from tensorflow.keras.layers import Input
+from tensorflow.keras.layers import BatchNormalization
+from tensorflow.keras.layers import Activation
+from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import l2
 
 def conv2d_bn(x, filters, kernel_size, weight_decay=.0, strides=(1, 1)):
     layer = Conv2D(filters=filters,
