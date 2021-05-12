@@ -51,7 +51,7 @@ fbk = False # whether to use feedback error correction or not
 
 ## CHOOSE COMPRESSION SCHEME
 # I. TOPK
-topk = True
+topk = False
 k = 190
 k_decay = "None" # None if no decay
 
@@ -226,7 +226,6 @@ else:
                 grad_elem_len = []
                 num_elem_in_grad = len(grad)
                 grad_elem_shapes = []
-
                 if fbk:
                     # Get grad elem shapes
                     for i in range(num_elem_in_grad):
@@ -247,7 +246,6 @@ else:
                         grad_elem_len.append(len(flattened))
                         grad_elem_shapes.append(grad[j].shape)
                         concat_grads = tf.concat((concat_grads, flattened), 0)
-                
                 # Compute top-k of grad/u
                 grad_tx = []
                 if topk:
@@ -283,7 +281,7 @@ else:
                             top_k_grad[i] = np.where(mask, 0.0 , np_grad)
 
                     grad_tx = top_k_grad
-
+                
                 # Compute quant of topk (switch order if needed)
                 if quant < 32:
                     if fbk:
@@ -300,17 +298,18 @@ else:
                             # Feedback error correction
                             r[each_idx] = u[each_idx] - q_np_u[each_idx]
                         grad_tx = q_np_u
-                    else:
-                        np_grad = np.array(grad)
-                
-                        q = Quantize()
-                        q.bitwidth = quant
-                        q_np_grad = []
+                else:
+                    np_grad = np.array(grad)
+            
+                    q = Quantize()
+                    q.bitwidth = quant
+                    q_np_grad = []
 
-                        for each_idx in range(len(np_grad)):
-                            q_w = q.quantize(np_grad[each_idx])
-                            q_np_grad.append(q_w)
-                        grad_tx = q_np_grad
+                    for each_idx in range(len(np_grad)):
+                        q_w = q.quantize(np_grad[each_idx])
+                        print(q_w)
+                        q_np_grad.append(q_w)
+                    grad_tx = q_np_grad
                         
                 # Send gradients to server
                 comm.send(grad_tx, dest=0, tag=11)
