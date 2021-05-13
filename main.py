@@ -46,15 +46,15 @@ alpha = 0.01 # learning rate
 
 batch_size=8
 
-base_model = "lenet" # available models: "FLNet, LeNet"
+base_model = "flnet" # available models: "FLNet, LeNet"
 
 fbk = True # whether to use feedback error correction or not
 
 ## CHOOSE COMPRESSION SCHEME
 # I. TOPK
 topk = True
-k = 190
-k_decay = "lin" # None if no decay
+k = 6000
+k_decay = None # None if no decay
 
 # II. QUANT
 quant = 32 # quantization bit-width: if 32, then no quant
@@ -67,6 +67,10 @@ val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
 # Accuracy metric
 train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('train_accuracy')
 val_accuracy = tf.keras.metrics.SparseCategoricalAccuracy('val_accuracy')
+
+# Grad var
+grad_var_l2 = tf.keras.metrics.Mean('grad_var_l2', dtype=tf.float32)
+grad_var_l1 = tf.keras.metrics.Mean('grad_var_l1', dtype=tf.float32)
 
 if rank == 0:
     # Load data
@@ -190,16 +194,18 @@ else:
         base += 'k_'+str(k)+'/'
 
     train_log_dir = base+str(rank)+'/' + current_time + '/train'
-    #grad_var_log_dir = base+'k_'+str(k)+'/'+str(rank)+'/' + current_time + '/grad_var'
+    grad_var_l2_log_dir = base+str(rank)+'/' + current_time + '/grad_var_l2'
+    grad_var_l1_log_dir = base+str(rank)+'/' + current_time + '/grad_var_l1'
     test_log_dir = base+str(rank)+'/' + current_time + '/test'
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    #grad_var_writer = tf.summary.create_file_writer(grad_var_log_dir)
+    grad_var_l2_writer = tf.summary.create_file_writer(grad_var_l2_log_dir)
+    grad_var_l1_writer = tf.summary.create_file_writer(grad_var_l1_log_dir)
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
     if fbk:
         r = []
         u = []
-
+    prev_grad = []
     for epoch in range(num_epoch):
         print(f"\nStart of Training Epoch {epoch}")
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
@@ -211,7 +217,7 @@ else:
                 train_loss(loss)
                 
                 grad = tape.gradient(loss, model.trainable_weights)
-
+                
                 concat_grads = tf.zeros((0,))
                 grad_elem_len = []
                 num_elem_in_grad = len(grad)
@@ -237,7 +243,14 @@ else:
                         grad_elem_len.append(len(flattened))
                         grad_elem_shapes.append(grad[j].shape)
                         concat_grads = tf.concat((concat_grads, flattened), 0)
-                
+               
+                if step==0 and epoch == 0:
+                  prev_grad = concat_grads
+                else:
+                  grad_var_l2(tf.norm(concat_grads - prev_grad, ord=2)/tf.norm(prev_grad, ord=2)**2)
+                  grad_var_l1(tf.norm(concat_grads - prev_grad, ord=1)/tf.norm(prev_grad, ord=1))
+                  prev_grad = concat_grads
+
                 # Compute top-k of grad/u
                 grad_tx = []
                 if topk:
@@ -346,6 +359,15 @@ else:
             tf.summary.scalar('val_accuracy', val_accuracy.result(), step=epoch)
 
         print("Validation acc: %.4f" % (float(val_accuracy.result()),))
-    
+        
+        # Log grad var metric
+        with grad_var_l2_writer.as_default():
+            tf.summary.scalar('grad_var_l2', grad_var_l2.result(), step=epoch)
+
+        with grad_var_l1_writer.as_default():
+            tf.summary.scalar('grad_var_l1', grad_var_l1.result(), step=epoch)
+
         val_loss.reset_states()
         val_accuracy.reset_states()
+        grad_var_l2.reset_states()
+        grad_var_l1.reset_states()
