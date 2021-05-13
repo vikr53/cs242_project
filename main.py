@@ -6,11 +6,10 @@ import numpy as np
 import math
 from mpi4py import MPI
 import datetime
-import torch
-import torchvision
-import torchvision.transforms as transforms
 from quantization.quantizer import Quantize
+from resnet_generator import ResNetForCIFAR10
 
+import sys
 # Create a data augmentation stage with horizontal flipping, rotations, zooms
 data_augmentation = keras.Sequential(
     [
@@ -57,7 +56,7 @@ k = 6000
 k_decay = None # None if no decay
 
 # II. QUANT
-quant = 32 # quantization bit-width: if 32, then no quant
+quant = 16 # quantization bit-width: if 32, then no quant
 #############################################################
 
 # Loss metric
@@ -173,6 +172,17 @@ else:
 
         # load weights
         model.load_weights("./chkpts/init_lenet.ckpt")
+    elif base_model == "resnet":
+        weight_decay = 1e-4
+        num_blocks = 9
+        name = "resnet"
+        model = ResNetForCIFAR10(input_shape=(32, 32, 3),name=name,block_layers_num=num_blocks, classes=10, weight_decay=weight_decay)
+        
+        #load weights
+        model.load_weights("./chkpts/init_resnet.ckpt")
+    else:
+        print("Incorrect NN choice. Please choose either FLNet, lenet, or resnet!!")
+        sys.exit()
 
     # Unfreeze Batch Norm layers                                                                              
     for layer in model.layers:
@@ -222,7 +232,6 @@ else:
                 grad_elem_len = []
                 num_elem_in_grad = len(grad)
                 grad_elem_shapes = []
-
                 if fbk:
                     # Get grad elem shapes
                     for i in range(num_elem_in_grad):
@@ -286,34 +295,22 @@ else:
                             top_k_grad[i] = np.where(mask, 0.0 , np_grad)
 
                     grad_tx = top_k_grad
-
+                
                 # Compute quant of topk (switch order if needed)
                 if quant < 32:
-                    if fbk:
-                        np_u = np.array(u)
-                        
-                        q = Quantize()
-                        q.bitwidth = quant
-                        q_np_u = []
+                    np_top = np.array(grad_tx)
+                    q = Quantize()
+                    q.bitwidth = quant
+                    q_np_top = []
 
-                        for each_idx in range(len(np_u)):
-                            q_w = q.quantize(np_u[each_idx])
-                            q_np_u.append(q_w)
-
-                            # Feedback error correction
-                            r[each_idx] = u[each_idx] - q_np_u[each_idx]
-                        grad_tx = q_np_u
-                    else:
-                        np_grad = np.array(grad)
-                
-                        q = Quantize()
-                        q.bitwidth = quant
-                        q_np_grad = []
-
-                        for each_idx in range(len(np_grad)):
-                            q_w = q.quantize(np_grad[each_idx])
-                            q_np_grad.append(q_w)
-                        grad_tx = q_np_grad
+                    for each_idx in range(len(np_top)):
+                        q_w = q.quantize(np_top[each_idx])
+                        q_np_top.append(q_w)
+                        if fbk:
+                            # Feedback error correction (overwrite from before)
+                            r[each_idx] = u[each_idx] - q_np_top[each_idx]
+                    
+                    grad_tx = q_np_top
                         
                 # Send gradients to server
                 comm.send(grad_tx, dest=0, tag=11)
