@@ -51,7 +51,7 @@ outputs = layers.Dense(10, activation='softmax')(x)
 model = keras.Model(inputs, outputs)
 
 model.save_weights("./chkpts/init_resnet8.ckpt")
-'''
+
 '''
 # Instantiate LeNet model
 inputs = keras.Input(shape=(32, 32, 3),name="input")
@@ -67,8 +67,8 @@ outputs = layers.Dense(10, activation='softmax')(x)
 model_lenet = keras.Model(inputs, outputs)
 print("Creating Checkpoint for LeNet model!")
 model_lenet.save_weights("./chkpts/init_lenet.ckpt")
-'''
 
+'''
 # Instantiate MobileNet model
 inputs = keras.Input(shape=(32, 32, 3),name="input")
 x = Conv( inputs , num_filters=32 , kernel_size=3)
@@ -93,3 +93,4 @@ model = keras.Model(inputs, outputs)
 
 print("Creating Checkpoint for MobileNet model!")
 model.save_weights("./chkpts/init_mobilenet.ckpt")
+'''
