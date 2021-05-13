@@ -11,6 +11,8 @@ class Quantize:
             return W
         range = np.abs(np.min(W)) + np.abs(np.max(W))
         d = range / (2**(n))
+        if d == 0:
+            return W
         z = -np.min(W, 0) // d
         W = np.rint(W / d)
         W = d * (W)
