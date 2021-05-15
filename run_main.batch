@@ -1,0 +1,9 @@
+#!/bin/bash
+#SBATCH -J lenet_topk_fbk_fp32
+#SBATCH -o lenet.out
+#SBATCH -e lenet.err
+#SBATCH -p shared
+#SBATCH -n 11
+#SBATCH -t 1600
+#SBATCH --mem-per-cpu=4000
+srun -n $SLURM_NTASKS --mpi=pmix python3.7 main.py
