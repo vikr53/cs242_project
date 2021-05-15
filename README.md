@@ -18,12 +18,14 @@ python3 chkpt_creator.py
 ## Step 2: Run the Federated learning 
 The `main.py` contains the source code to run FL. Currently the code is configured to spawn one server (parameter sever) and 10 client nodes. The communication is between these distributed system is managed by MPI. You can select the compression methods (valid ones are : FBK -- Feedback error correction, Topk -- Topk sparsity, quant -- for quantization, kdecay for either linear decay or exponential decay). Once you have configured the parameters, you can launch the FL training by calling the batch script.
 
-```sbatch run_main.bath
+```
+sbatch run_main.bath
 ```
 
 ## Step 3: Monitor Training Progress
 
 Once you have launched the training, the TFevents files will be generated inside the `\logs` folder. You can monitor the training progress in tensorboard using the following command:
 
-```tensorboard --logdir logs
+```
+tensorboard --logdir logs
 ```
