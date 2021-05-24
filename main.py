@@ -7,7 +7,8 @@ import math
 from mpi4py import MPI
 import datetime
 from quantization.quantizer import Quantize
-from resnet_generator import ResNetForCIFAR10
+from models import *
+from sampler import *
 
 import sys
 # Create a data augmentation stage with horizontal flipping, rotations, zooms
@@ -17,16 +18,7 @@ data_augmentation = keras.Sequential(
         layers.experimental.preprocessing.RandomRotation(0.1),
     ]
 )
-
-def res_net_block(input_data, filters, conv_size):
-  x = layers.Conv2D(filters, conv_size, activation='relu', padding='same')(input_data)
-  x = layers.BatchNormalization()(x)
-  x = layers.Conv2D(filters, conv_size, activation=None, padding='same')(x)
-  x = layers.BatchNormalization()(x)
-  x = layers.Add()([x, input_data])
-  x = layers.Activation('relu')(x)
-  return x
-
+  
 comm = MPI.COMM_WORLD
 nproc = comm.Get_size()
 N = nproc - 1 # one node is the server
@@ -43,20 +35,22 @@ optimizer = tf.keras.optimizers.SGD()
 num_epoch = 70
 alpha = 0.01 # learning rate
 
-batch_size=8
+batch_size=1
 
-base_model = "flnet" # available models: "FLNet, LeNet"
+base_model = "flnet" # available models: "FLNet, ResNet9"
 
-fbk = True # whether to use feedback error correction or not
+fbk = False # whether to use feedback error correction or not
 
+sample = "non_iid"
 ## CHOOSE COMPRESSION SCHEME
 # I. TOPK
-topk = True
-k = 6000
+topk = False
+k = 668426
+kf = 1
 k_decay = None # None if no decay
 
 # II. QUANT
-quant = 16 # quantization bit-width: if 32, then no quant
+quant = 32 # quantization bit-width: if 32, then no quant
 #############################################################
 
 # Loss metric
@@ -72,47 +66,20 @@ grad_var_l2 = tf.keras.metrics.Mean('grad_var_l2', dtype=tf.float32)
 grad_var_l1 = tf.keras.metrics.Mean('grad_var_l1', dtype=tf.float32)
 
 if rank == 0:
-    # Load data
-    (x_train, y_train), (x_test, y_test) = tf.keras.datasets.cifar10.load_data()
-    
-    # Normalize input images
-    x_train, x_test = tf.cast(x_train, tf.float32),  tf.cast(x_test, tf.float32)
-
-    train_size = x_train.shape[0] # number of training samples
-    test_size = x_test.shape[0] # number of testing samples
-
-    # Partition training data
-    split_train_idx = np.random.choice(train_size, (N, math.floor(train_size/N)), replace=False)
-    
-    # Similarly, partition test data
-    # I. Split the validation dataset
-    # split_test_idx = np.random.choice(test_size, (N, math.floor(test_size/N)), replace=False)
-
-    d_xtrain = np.array((len(split_train_idx[0]),))
-    d_ytrain = np.array((len(split_train_idx[0]),))
-    
-    # Communicate data partition (point-to-point)
-    for n in range(1,N+1):
-        x_train_local = np.array([x_train[idx] for idx in split_train_idx[n-1]])
-        y_train_local = np.array([y_train[idx] for idx in split_train_idx[n-1]])
-        
-        # II. Don't split validation
-        #x_test_local = np.array([x_test[idx] for idx in split_test_idx[n-1]])
-        #y_test_local = np.array([y_test[idx] for idx in split_test_idx[n-1]])
-
-        if n == 1:
-            d_xtrain = x_train_local
-            d_ytrain = y_train_local
-
-        # comm.send([x_train_local, y_train_local, x_test_local, y_test_local], dest=n, tag=11)
-        comm.send([x_train_local, y_train_local, x_test, y_test], dest=n, tag=11)
-
-    # dummy dataset to get number of steps
-    dset = tf.data.Dataset.from_tensor_slices((d_xtrain, d_ytrain))
-    dset = dset.shuffle(buffer_size=60000).batch(batch_size)
+    if sample == "non_iid":
+        sampler = Sampler(False, N, "cifar10")
+    else:
+        sampler = Sampler(True, N, "cifar10")
+        sampler.sample_iid(comm)
     
     # Aggregation
     for epoch in range(num_epoch):
+        if sample == "non_iid":
+            sampler.sample_noniid(comm)
+
+        # dummy dataset to get number of steps
+        dset = tf.data.Dataset.from_tensor_slices((sampler.x_train_local, sampler.y_train_local))
+        dset = dset.shuffle(buffer_size=60000).batch(batch_size)
         for step in enumerate(dset):
             # obtain gradients from each node (assuming at least one other node)
             grad = comm.recv(source=1, tag=11)
@@ -128,61 +95,26 @@ if rank == 0:
             for n in range(1, N+1):
                 comm.send(grad, dest=n, tag=11)
 else:
-    # Receive partitioned data at node
-    x_train_local, y_train_local, x_test_local, y_test_local = comm.recv(source=0, tag=11)
-    x_test_local = tf.keras.applications.resnet.preprocess_input(x_test_local)    
-    x_train_local = tf.keras.applications.resnet.preprocess_input(x_train_local)
+    if sample == "iid":
+        # Receive partitioned data at node
+        x_train_local, y_train_local, x_test_local, y_test_local = comm.recv(source=0, tag=11)
+        x_test_local = tf.keras.applications.resnet.preprocess_input(x_test_local)    
+        x_train_local = tf.keras.applications.resnet.preprocess_input(x_train_local)
     
-    train_dataset = tf.data.Dataset.from_tensor_slices((x_train_local, y_train_local))
-    train_dataset = train_dataset.shuffle(buffer_size=60000).batch(batch_size)
+        train_dataset = tf.data.Dataset.from_tensor_slices((x_train_local, y_train_local))
+        train_dataset = train_dataset.shuffle(buffer_size=60000).batch(batch_size)
 
-    val_dataset = tf.data.Dataset.from_tensor_slices((x_test_local, y_test_local))
-    val_dataset = val_dataset.shuffle(buffer_size=20000).batch(batch_size)
+        val_dataset = tf.data.Dataset.from_tensor_slices((x_test_local, y_test_local))
+        val_dataset = val_dataset.shuffle(buffer_size=20000).batch(batch_size)
     
     # Instantiate model
     if base_model == "flnet":
-        inputs = keras.Input(shape=(32, 32, 3))
-        x = layers.Conv2D(32, 3, activation='relu')(inputs)
-        x = layers.Conv2D(64, 3, activation='relu')(x)
-        x = layers.MaxPooling2D(3)(x)
-        num_res_net_blocks = 8
-        for i in range(num_res_net_blocks):
-            x = res_net_block(x, 64, 3)
-        x = layers.Conv2D(64, 3, activation='relu')(x)
-        x = layers.GlobalAveragePooling2D()(x)
-        x = layers.Dense(256, activation='relu')(x)
-        x = layers.Dropout(0.5)(x)
-        outputs = layers.Dense(10, activation='softmax')(x)
-        model = keras.Model(inputs, outputs)
-    
-        # load weights
-        model.load_weights("./chkpts/init_resnet8.ckpt")
-    elif base_model == "lenet":
-        inputs = keras.Input(shape=(32, 32, 3),name="input")
-        x = layers.Conv2D(6, 3, activation='relu',name="layer1")(inputs)
-        x = layers.MaxPooling2D(3)(x)
-        x = layers.Conv2D(16, 3, activation='relu',name="layer2")(x)
-        x = layers.MaxPooling2D(3)(x)
-        x = layers.Flatten()(x)
-    
-        x = layers.Dense(120, activation='relu',name="FC1")(x)
-        x = layers.Dense(84, activation='relu',name="FC2")(x)
-        outputs = layers.Dense(10, activation='softmax')(x)
-        model = keras.Model(inputs, outputs)
-
-        # load weights
-        model.load_weights("./chkpts/init_lenet.ckpt")
-    elif base_model == "resnet":
-        weight_decay = 1e-4
-        num_blocks = 9
-        name = "resnet"
-        model = ResNetForCIFAR10(input_shape=(32, 32, 3),name=name,block_layers_num=num_blocks, classes=10, weight_decay=weight_decay)
-        
-        #load weights
-        model.load_weights("./chkpts/init_resnet.ckpt")
+      model = flnet_init()
+    elif base_model == "resnet9":
+      model = resnet_init()
     else:
-        print("Incorrect NN choice. Please choose either FLNet, lenet, or resnet!!")
-        sys.exit()
+      print("Incorrect NN choice. Please choose either FLNet, lenet, or resnet!!")
+      sys.exit()
 
     # Unfreeze Batch Norm layers                                                                              
     for layer in model.layers:
@@ -191,7 +123,7 @@ else:
     
     # Set up summary writers
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    base = "logs/"+base_model+"/"
+    base = "logs/"+base_model+"/" + sample + "/"
     if fbk:
         base += "fbk/"
     if topk:
@@ -202,15 +134,16 @@ else:
         base += 'kdecay_'+k_decay+str(k)+'/'
     else:
         base += 'k_'+str(k)+'/'
-
-    train_log_dir = base+str(rank)+'/' + current_time + '/train'
-    grad_var_l2_log_dir = base+str(rank)+'/' + current_time + '/grad_var_l2'
-    grad_var_l1_log_dir = base+str(rank)+'/' + current_time + '/grad_var_l1'
-    test_log_dir = base+str(rank)+'/' + current_time + '/test'
-    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    grad_var_l2_writer = tf.summary.create_file_writer(grad_var_l2_log_dir)
-    grad_var_l1_writer = tf.summary.create_file_writer(grad_var_l1_log_dir)
-    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+    
+    if rank == 3:
+        train_log_dir = base+str(rank)+'/schedulelr' + current_time + '/train'
+        grad_var_l2_log_dir = base+str(rank)+'/schedulelr' + current_time + '/grad_var_l2'
+        grad_var_l1_log_dir = base+str(rank)+'/schedulelr' + current_time + '/grad_var_l1'
+        test_log_dir = base+str(rank)+'/schedulelr' + current_time + '/test'
+        train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+        grad_var_l2_writer = tf.summary.create_file_writer(grad_var_l2_log_dir)
+        grad_var_l1_writer = tf.summary.create_file_writer(grad_var_l1_log_dir)
+        test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
     if fbk:
         r = []
@@ -218,6 +151,18 @@ else:
     prev_grad = []
     for epoch in range(num_epoch):
         print(f"\nStart of Training Epoch {epoch}")
+        if sample == "non_iid":
+            # Receive dataset for this epoch
+            x_train_local, y_train_local, x_test_local, y_test_local = comm.recv(source=0, tag=11)
+            x_test_local = tf.keras.applications.resnet.preprocess_input(x_test_local)    
+            x_train_local = tf.keras.applications.resnet.preprocess_input(x_train_local)
+
+            train_dataset = tf.data.Dataset.from_tensor_slices((x_train_local, y_train_local))
+            train_dataset = train_dataset.batch(batch_size) # don't shuffle
+
+            val_dataset = tf.data.Dataset.from_tensor_slices((x_test_local, y_test_local))
+            val_dataset = val_dataset.shuffle(buffer_size=60000).batch(batch_size)
+
         for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):
             with tf.GradientTape() as tape:
                 y_pred = model(x_batch_train, training=True)
@@ -256,19 +201,22 @@ else:
                 if step==0 and epoch == 0:
                   prev_grad = concat_grads
                 else:
-                  grad_var_l2(tf.norm(concat_grads - prev_grad, ord=2)/tf.norm(prev_grad, ord=2)**2)
+                  grad_var_l2(tf.norm(concat_grads - prev_grad, ord=2)**2/tf.norm(prev_grad, ord=2)**2)
                   grad_var_l1(tf.norm(concat_grads - prev_grad, ord=1)/tf.norm(prev_grad, ord=1))
                   prev_grad = concat_grads
 
                 # Compute top-k of grad/u
-                grad_tx = []
+                grad_tx = grad
                 if topk:
                     k_epoch = k
+                    n_epoch = 20
                     if k_decay == "lin":
-                        n_epoch = 20
-                        kf = 1
-                        k_epoch = int(k - math.floor((epoch)*(k-kf)/(num_epoch)))
-
+                        if epoch <= n_epoch:
+                            k_epoch = int(k - math.floor((epoch)*(k-kf)/(num_epoch)))
+                        else:
+                            k_epoch = kf
+                    elif k_decay == "exp":
+                        k_epoch = int(k*math.pow(0.8, epoch) + kf)
                     top_val, top_idx = tf.math.top_k(tf.math.abs(concat_grads), k_epoch)
                     k_val, k_idx = top_val[-1], top_idx[-1]
                     top_k_grad = [np.zeros(grad_elem_shapes[i]) for i in range(len(grad_elem_shapes))]
@@ -325,46 +273,56 @@ else:
             if fbk:
                 optimizer.learning_rate = 1 # already applied learning rate
             else:
-                optimizer.learning_rate = alpha
+                #optimizer.learning_rate = alpha
+                # schedule
+                alpha_5 = 0.1
+                if epoch < 4:
+                    # ramp up
+                    optimizer.learning_rate = alpha + epoch*(alpha_5-alpha)/3
+                elif epoch >= 4 and epoch < 8:
+                    # ramp down
+                    optimizer.learning_rate = alpha_5 - (epoch-4)*(alpha_5-alpha)/3
+                else:
+                    optimizer.learning_rate = alpha
             #optimizer.momentum = 0.9
             optimizer.apply_gradients(zip(grad_rx, model.trainable_weights))
 
         print(f"Accuracy over epoch {train_accuracy.result()}")
         print(f"Loss over epoch {train_loss.result()}")
-
-        # Log train metrics
-        with train_summary_writer.as_default():
-            tf.summary.scalar('loss', train_loss.result(), step=epoch)
-            tf.summary.scalar('accuracy', train_accuracy.result(), step=epoch)
         
-        #train_acc = train_accuracy.result()
-        #print(f"Accuracy over epoch {train_acc}")
-
-        # Reset metrics every epoch
-        train_loss.reset_states()
-        train_accuracy.reset_states()
-                
-        # Run validation
-        for x_batch_val, y_batch_val in val_dataset:
-            val_logits = model(x_batch_val, training = False)
-            val_loss(loss_fn(y_batch_val, val_logits))
-            val_accuracy(y_batch_val, val_logits)
-
-        # Log Validation metrics
-        with test_summary_writer.as_default():
-            tf.summary.scalar('val_loss', val_loss.result(), step=epoch)
-            tf.summary.scalar('val_accuracy', val_accuracy.result(), step=epoch)
-
-        print("Validation acc: %.4f" % (float(val_accuracy.result()),))
+        if rank == 3:
+            # Log train metrics
+            with train_summary_writer.as_default():
+                tf.summary.scalar('loss', train_loss.result(), step=epoch)
+                tf.summary.scalar('accuracy', train_accuracy.result(), step=epoch)
         
-        # Log grad var metric
-        with grad_var_l2_writer.as_default():
-            tf.summary.scalar('grad_var_l2', grad_var_l2.result(), step=epoch)
+            #train_acc = train_accuracy.result()
+            print(f"Accuracy over epoch {train_acc}")
 
-        with grad_var_l1_writer.as_default():
-            tf.summary.scalar('grad_var_l1', grad_var_l1.result(), step=epoch)
+            # Run validation
+            for x_batch_val, y_batch_val in val_dataset:
+                val_logits = model(x_batch_val, training = False)
+                val_loss(loss_fn(y_batch_val, val_logits))
+                val_accuracy(y_batch_val, val_logits)
+
+            # Log Validation metrics
+            with test_summary_writer.as_default():
+                tf.summary.scalar('val_loss', val_loss.result(), step=epoch)
+                tf.summary.scalar('val_accuracy', val_accuracy.result(), step=epoch)
+
+            print("Validation acc: %.4f" % (float(val_accuracy.result()),))
+
+            # Log  metric
+            with grad_var_l2_writer.as_default():
+                tf.summary.scalar('grad_var_l2', grad_var_l2.result(), step=epoch)
+
+            with grad_var_l1_writer.as_default():
+                tf.summary.scalar('grad_var_l1', grad_var_l1.result(), step=epoch)
 
         val_loss.reset_states()
         val_accuracy.reset_states()
         grad_var_l2.reset_states()
         grad_var_l1.reset_states()
+        # Reset metrics every epoch
+        train_loss.reset_states()
+        train_accuracy.reset_states()
